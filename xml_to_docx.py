@@ -1,151 +1,166 @@
 import os
 import re
-# import xml.etree.ElementTree as ET
-from lxml import etree as ET
+from typing import List
+
+from lxml import etree as et
 from docx import Document
+from natsort import natsorted
 
-tei_ns = '{http://www.tei-c.org/ns/1.0}'
-xml_ns = '{http://www.w3.org/XML/1998/namespace}'
+from itsee_to_open_cbgm import reformat_xml
 
-main_dir = re.sub(r"\\", "/", os.getcwd())
-cx_fname = 'Rom14_April-30-21.xml'
+TEI_NS = '{http://www.tei-c.org/ns/1.0}'
+XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 
-with open(cx_fname, 'r', encoding='utf-8') as file:
-    tree = file.read()
-tree = re.sub("xml:id", "verse", tree)
-tree = re.sub("<TEI xmlns=\"http://www.tei-c.org/ns/1.0\">", "<TEI>", tree)
-tree = re.sub("<?xml version='1.0' encoding='UTF-8'?>", "", tree)
-with open('temp.xml', 'w', encoding='utf-8') as file:
-    file.write(tree)
+cx_fname = '1Cor1.xml'
 
-parser = ET.XMLParser(remove_blank_text=True)
-tree = ET.parse('temp.xml', parser)
-root = tree.getroot()
+def get_xml_file(xml: str) ->et._Element:
+    xml = xml.replace('xml:id="1', 'xml:id="I')
+    xml = xml.replace('xml:id="2', 'xml:id="II')
+    xml = xml.replace('xml:id="3', 'xml:id="III')
+    xml = xml.replace('subreading', 'subr')
+    with open('temp.xml', 'w', encoding='utf-8') as file:
+        file.write(xml)
+    if re.search('<teiHeader>', xml) is None:
+        try:
+            reformat_xml('temp.xml')
+        except:
+            return None
+    parser = et.XMLParser(remove_blank_text=True, encoding='UTF-8')
+    tree = et.parse('temp.xml', parser) #type: et._ElementTree
+    root = tree.getroot()
+    os.remove('temp.xml')
+    return root
 
-document = Document("template.docx")
+def load_xml_file(cx_fname: str):
+    with open(cx_fname, 'r', encoding='utf-8') as file:
+        xml = file.read()
+    return get_xml_file(xml)
 
+def construct_full_ref(ab: et. _Element):
+    ref = ab.get(f'{XML_NS}id').replace('-APP', '').replace('.', ':')
+    if re.search(r'ICor\d', ref):
+        ref = ref.replace('ICor', '1 Corinthians ')
+    elif re.search(r'Rom\d', ref):
+        ref = ref.replace('Rom', 'Romans ')
+    elif not ref[0].isdigit():
+        ref = re.sub(r'([a-zA-Z]+)(\d)', r'\1 \2', ref)
+    return ref
 
-# document.add_heading('Critical Apparatus\n', 0)
-
-ab_elements = root.findall("ab")
-for ab in ab_elements:
-    apps = ab.findall('app')
-    verse = ab.get("verse")
-    verse = verse.replace('-APP', '')
-
-    full_verse = verse.replace('Rom', 'Romans ')
-    full_verse = full_verse.replace('.', ':')
-
-    reference = document.add_paragraph(full_verse)
+def print_reference(document: Document, ab: et._Element):
+    ref = construct_full_ref(ab)
+    reference = document.add_paragraph(ref)
     reference.style = document.styles['reference']
 
-    ref = re.sub(r"\.", " ", verse)
-    ref = ref.split()
-    chp = ref[0]
-    vrs = ref[1]
+def group_basetext_words(basetext: str) -> List[list]:
+    grouped_basetext = []
+    current_group = []
+    chunk = 0
+    for word in basetext.split():
+        if chunk == 9:
+            current_group.append(word)
+            grouped_basetext.append(current_group)
+            chunk = 0
+            current_group = []
+            continue
+        current_group.append(word)
+        chunk += 1
+    if current_group != []:
+        grouped_basetext.append(current_group)
+    return grouped_basetext
 
-    # Get RP verse for display and also the ECM style index nums
-    
-    # it is insane that I did this!
-    # with open(rp_fname, 'r', encoding='utf-8') as file:
-    #     basetext = file.readlines()
+def construct_basetext(ab: et._Element) -> str:
+    basetext = []
+    for elem in ab:
+        if elem.tag == f'{TEI_NS}seg':
+            basetext.append(elem.text)
+        elif elem.tag == f'{TEI_NS}app' and elem.find(f'{TEI_NS}lem').get('type') != 'om':
+            basetext.append(elem.find(f'{TEI_NS}lem').text)
+    return ' '.join(basetext)
 
-    basetext = 'This is filler text. I wrote this along time ago and did not have a good way of getting the basetext'
-    basetext = basetext.split()
-
+def print_basetext(document: Document, ab: et._Element):
+    basetext = construct_basetext(ab)
+    basetext = group_basetext_words(basetext)
+    table = document.add_table(rows=0, cols=10)
+    index = 2
     for line in basetext:
-        if line.startswith(vrs):
-            line = re.sub(vrs, "", line)
-            basetext = line.strip().split()
-
-    index = []
-    count = 2
-
-    for i in range(len(basetext)):
-        count_str = str(count)
-        index.append(count_str)
-        count += 2
-
-    verse_length = len(basetext)
-
-    cell = 0
-    if verse_length <= 15:
-        table = document.add_table(rows=0, cols=verse_length)
         row_cells = table.add_row().cells
-        for x, y in zip(index, basetext):
-            row_cells[cell].text = f"{x}\n{y}"
-            row_cells[cell].style = document.styles['table cell']
-            cell += 1
-
-    elif verse_length <= 30:
-        index_a = index[:15]
-        basetext_a = basetext[:15]
-
-        table = document.add_table(rows=0, cols=15)
-        row_cells = table.add_row().cells
-
-        for x, y in zip(index[:15], basetext[:15]):
-            row_cells[cell].text = f"{y}\n{x}"
+        for cell, word in enumerate(line):
+            row_cells[cell].text = f"{word}\n{index}"
             row_cells[cell].paragraphs[0].style = document.styles['table cell']
-            cell += 1
-        cell = 0
-        row_cells = table.add_row().cells
-        for x, y in zip(index[15:], basetext[15:]):
-            row_cells[cell].text = f"{y}\n{x}"
-            row_cells[cell].paragraphs[0].style = document.styles['table cell']
-            cell += 1
+            index += 2
 
+def print_app(document: Document, app: et._Element):
+    app_from = app.get('from')
+    app_to = app.get('to')
+    if app_from == app_to:
+        index = app_from
     else:
-        table = document.add_table(rows=0, cols=15)
-        row_cells = table.add_row().cells
+        index = f'{app_from}–{app_to}'
+    p = document.add_paragraph(index)
+    p.style = document.styles['index']
 
-        for x, y in zip(index[:15], basetext[:15]):
-            row_cells[cell].text = f"{y}\n{x}"
-            row_cells[cell].paragraphs[0].style = document.styles['table cell']
-            cell += 1
+def sort_by_ga(wits: List[str]):
+    papyri = []
+    majuscules = []
+    minuscules = []
+    lectionaries = []
+    editions = []
+    for wit in wits:
+        if wit.lower().startswith('p'):
+            papyri.append(wit)
+        elif wit.startswith('0'):
+            majuscules.append(wit)
+        elif wit[0].isdigit():
+            minuscules.append(wit)
+        elif wit.lower().startswith('l'):
+            lectionaries.append(wit)
+        else:
+            editions.append(wit)
+    return natsorted(papyri) + natsorted(majuscules) + natsorted(minuscules) + natsorted(lectionaries) + natsorted(editions)
 
-        cell = 0
-        row_cells = table.add_row().cells
-        for x, y in zip(index[15:30], basetext[15:30]):
-            row_cells[cell].text = f"{y}\n{x}"
-            row_cells[cell].paragraphs[0].style = document.styles['table cell']
-            cell += 1
-        
-        cell = 0
-        row_cells = table.add_row().cells
-        for x, y in zip(index[30:], basetext[30:]):
-            row_cells[cell].text = f"{y}\n{x}"
-            row_cells[cell].paragraphs[0].style = document.styles['table cell']
-            cell += 1
+def print_rdg(
+    document, rdg: et._Element, 
+    text_wits_separator: str, 
+    rdg_n_text_separator: str, 
+    rdg_n_italic: bool,
+    text_bold: bool
+    ):
+    if rdg.text:
+        greek_text = rdg.text
+    else:
+        greek_text = rdg.get('type')
+    p = document.add_paragraph()
+    p.style = document.styles['reading']
+    rdg_name = re.sub(r'\d', '', rdg.get('n'))
+    p.add_run(f"{rdg_name}{rdg_n_text_separator}").italic = rdg_n_italic
+    p.add_run(greek_text).bold = text_bold
+    wits = rdg.get('wit').split(' ')
+    wits = sort_by_ga(wits)
+    wits = ' '.join(wits)
+    p.add_run(f"{text_wits_separator}{wits}")
 
-    for app in apps:
-        try:
-            app_from = app.get('from')
-            app_to = app.get('to')
-            if app_from == app_to:
-                index = app_from
-            else:
-                index = f'{app_from}–{app_to}'
-            p = document.add_paragraph(index)
-            p.style = document.styles['index']
-            rdgs = app.findall('rdg')
-            for rdg in rdgs:
-                if rdg.text:
-                    greek_text = rdg.text
-                    p = document.add_paragraph()
-                    p.style = document.styles['reading']
-                    p.add_run(f"{rdg.get('n')}: ").italic = True
-                    p.add_run(greek_text).bold = True
-                    p.add_run(f" // {rdg.get('wit')}")
-                else:
-                    greek_text = rdg.get('type')
-                    p = document.add_paragraph(f"Reading {rdg.get('n')}: ")
-                    p.style = document.styles['reading']
-                    p.add_run(greek_text).bold = True
-                    p.add_run(f" // {rdg.get('wit')}")
-        except:
-            pass
+def main(
+    cx_fname, text_wits_separator: str = ' // ', 
+    rdg_n_text_separator: str = '\t', 
+    rdg_n_italic: bool = True,
+    text_bold: bool = False
+    ):
 
-document.save("apparatus.docx")
+    document = Document("template.docx")
+    root = load_xml_file(cx_fname)
+    for ab in root.findall(f'{TEI_NS}ab'):
+        print_reference(document, ab)
+        print_basetext(document, ab)
+        for app in ab.findall(f'{TEI_NS}app'):
+            print_app(document, app)
+            for rdg in app.findall(f'{TEI_NS}rdg'): #type: List[et._Element]
+                print_rdg(
+                    document, rdg, text_wits_separator, 
+                    rdg_n_text_separator, rdg_n_italic,
+                    text_bold
+                    )
 
-print('Done')
+    document.save("apparatus.docx")
+    print('Done')
+
+main(cx_fname)
