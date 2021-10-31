@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 from typing import List
@@ -51,12 +52,13 @@ def print_reference(document: Document, ab: et._Element):
     reference = document.add_paragraph(ref)
     reference.style = document.styles['reference']
 
-def group_basetext_words(basetext: str) -> List[list]:
+def group_basetext_words(basetext: str, words_per_line: int) -> List[list]:
+    words_per_line = words_per_line - 1
     grouped_basetext = []
     current_group = []
     chunk = 0
     for word in basetext.split():
-        if chunk == 9:
+        if chunk == words_per_line:
             current_group.append(word)
             grouped_basetext.append(current_group)
             chunk = 0
@@ -77,9 +79,9 @@ def construct_basetext(ab: et._Element) -> str:
             basetext.append(elem.find(f'{TEI_NS}lem').text)
     return ' '.join(basetext)
 
-def print_basetext(document: Document, ab: et._Element):
+def print_basetext(document: Document, ab: et._Element, words_per_line: int):
     basetext = construct_basetext(ab)
-    basetext = group_basetext_words(basetext)
+    basetext = group_basetext_words(basetext, words_per_line)
     table = document.add_table(rows=0, cols=10)
     index = 2
     for line in basetext:
@@ -122,7 +124,6 @@ def print_rdg(
     document, rdg: et._Element, 
     text_wits_separator: str, 
     rdg_n_text_separator: str, 
-    rdg_n_italic: bool,
     text_bold: bool
     ):
     if rdg.text:
@@ -132,35 +133,67 @@ def print_rdg(
     p = document.add_paragraph()
     p.style = document.styles['reading']
     rdg_name = re.sub(r'\d', '', rdg.get('n'))
-    p.add_run(f"{rdg_name}{rdg_n_text_separator}").italic = rdg_n_italic
+    p.add_run(f"{rdg_name}{rdg_n_text_separator}").italic = True
     p.add_run(greek_text).bold = text_bold
     wits = rdg.get('wit').split(' ')
     wits = sort_by_ga(wits)
     wits = ' '.join(wits)
     p.add_run(f"{text_wits_separator}{wits}")
 
-def main(
-    cx_fname, text_wits_separator: str = ' // ', 
+def export_xml_to_docx(
+    xml_filename: str,
+    docx_filename: str,
+    text_wits_separator: str = ' // ', 
     rdg_n_text_separator: str = '\t', 
-    rdg_n_italic: bool = True,
+    words_per_line: int = 10,
     text_bold: bool = False
     ):
 
     document = Document("template.docx")
-    root = load_xml_file(cx_fname)
+    root = load_xml_file(xml_filename)
     for ab in root.findall(f'{TEI_NS}ab'):
         print_reference(document, ab)
-        print_basetext(document, ab)
+        print_basetext(document, ab, words_per_line)
         for app in ab.findall(f'{TEI_NS}app'):
             print_app(document, app)
             for rdg in app.findall(f'{TEI_NS}rdg'): #type: List[et._Element]
                 print_rdg(
                     document, rdg, text_wits_separator, 
-                    rdg_n_text_separator, rdg_n_italic,
-                    text_bold
+                    rdg_n_text_separator, text_bold
                     )
 
-    document.save("apparatus.docx")
-    print('Done')
+    document.save(docx_filename)
 
-main(cx_fname)
+def main():
+    parser = argparse.ArgumentParser(description='''
+    Export a an XML critical apparatus output of the ITSEE
+    Collation Editor to a DOCX file suitable for publication.
+    ''')
+    parser.add_argument('input', type=str, help='apparatus file (.xml) to export')
+    parser.add_argument('-o', metavar='output', type=str, help='Output file address (default is same as input with a .docx file extension.')
+    parser.add_argument('--text_wits_separator', type=str, help='what to insert between reading text and witnesses; defaults to " // "', default=' // ')
+    parser.add_argument('--rdg_n_text_separator', type=str, help='what to insert between reading name and reading text; defaults to one tab', default='\t')
+    parser.add_argument('--words_per_line', type=int, help='How many basetext words per line; default is 10', default=10)
+    parser.add_argument('-b', action='store_true', help='make reading text bold; default is False', default=False)
+    args = parser.parse_args()
+    xml_file = args.input
+    if args.o is None:
+        docx_filename = xml_file.replace('.xml', '.docx')
+    else:
+        docx_filename = args.o
+        if not docx_filename.endswith('.docx'):
+            docx_filename = f'{docx_filename}.docx'
+    try:
+        export_xml_to_docx(
+            xml_file, docx_filename, args.text_wits_separator,
+            args.rdg_n_text_separator, args.words_per_line, 
+            args.b
+            )
+    except et.XMLSyntaxError:
+        print('''\nFailed to parse the XML apparatus file.\n\
+Ensure that the XML file is the output of the ITSEE\n\
+Collation Editor. Please do report if this is a bug :-)''')
+    print(f'{xml_file} exported to {docx_filename}')
+
+if __name__ == '__main__':
+    main()
