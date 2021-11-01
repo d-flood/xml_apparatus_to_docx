@@ -27,6 +27,9 @@ See the following optional arguments:
 -  `--words_per_line`: How many basetext words per line; default is 10
 -  `-b`: make reading text bold; default is False
 
+### `template.docx`
+Included with this repo is the file `template.docx` which is a blank DOCX file with several styles configured. Much about the exported DOCX file can be modified by editing these styles in Microsoft Word and then saving it as `template.docx`. _Note well_, however, that these styles _must_ be named exactly as they are named in the included template or the export will fail.
+
 ## Example Output
 ![screenshot of Microsoft Word document containing a generated ECM-style critical apparatus](images/example.png)
 
