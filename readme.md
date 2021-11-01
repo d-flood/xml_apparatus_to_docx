@@ -13,6 +13,8 @@ Ideally, the XML Apparatus file should consist of many Collation Editor output f
 - natsort==7.1.1
 - python-docx==0.8.11
 
+The Collation Editor output file is first preprocessed with Joey McCollom's [itsee-to-open-cbgm](https://github.com/jjmccollum/itsee-to-open-cbgm), which is included and modified for use as part of this package.
+
 ### Simple Use
 From the terminal, run `python xml_to_docx.py {your input file}`
 
@@ -27,3 +29,5 @@ See the following optional arguments:
 
 ## Example Output
 ![screenshot of Microsoft Word document containing a generated ECM-style critical apparatus](images/example.png)
+
+The script will attempt to unabbreviate New Testament biblical references and convert INTF/IGNTP style references in to longform references for use in the headings.
