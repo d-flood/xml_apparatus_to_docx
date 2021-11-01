@@ -9,9 +9,9 @@ from natsort import natsorted
 
 from itsee_to_open_cbgm import reformat_xml
 
+
 TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 XML_NS = '{http://www.w3.org/XML/1998/namespace}'
-
 ABBR_TO_FULL = {
     'Matt': 'Matthew',
     'B01': 'Matthew',
@@ -142,12 +142,6 @@ def construct_full_ref(ab: et. _Element):
             return ref
         reference = ref.replace(book, '').replace('.', ':')
         ref = f'{full_book} {reference}'
-    # if re.search(r'ICor\d', ref):
-    #     ref = ref.replace('ICor', '1 Corinthians ')
-    # elif re.search(r'Rom\d', ref):
-    #     ref = ref.replace('Rom', 'Romans ')
-    # elif not ref[0].isdigit():
-    #     ref = re.sub(r'([a-zA-Z]+)(\d)', r'\1 \2', ref)
     return ref
 
 def print_reference(document: Document, ab: et._Element):
@@ -264,7 +258,6 @@ def export_xml_to_docx(
                     document, rdg, text_wits_separator, 
                     rdg_n_text_separator, text_bold
                     )
-
     document.save(docx_filename)
 
 def main():
