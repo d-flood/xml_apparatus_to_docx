@@ -12,7 +12,94 @@ from itsee_to_open_cbgm import reformat_xml
 TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 
-cx_fname = '1Cor1.xml'
+ABBR_TO_FULL = {
+    'Matt': 'Matthew',
+    'B01': 'Matthew',
+    'Mark': 'Mark',
+    'B02': 'Mark',
+    'Luke': 'Luke',
+    'B03': 'Luke',
+    'John': 'John',
+    'B04': 'John',
+    'Acts': 'Acts',
+    'B05': 'Acts',
+    'Rom': 'Romans',
+    'B06': 'Romans',
+    'Romans': 'Romans',
+    'R': 'Romans',
+    '1 Cor': '1 Corinthians',
+    '1Cor': '1 Corinthians',
+    'ICor': '1 Corinthians',
+    'B07': '1 Corinthians',
+    'B07': '1 Corinthians',
+    '1 Corinthians': '1 Corinthians',
+    '2 Cor': '2 Corinthians',
+    '2Cor': '2 Corinthians',
+    'IICor': '2 Corinthians',
+    '2 Corinthians': '2 Corinthians',
+    'B08': '2 Corinthians',
+    'Gal': 'Galatians',
+    'Galatians': 'Galatians',
+    'B09': 'Galatians',
+    'Eph': 'Ephesians',
+    'Ephesians': 'Ephesians',
+    'B10': 'Ephesians',
+    'Phil': 'Philippians',
+    'Philippians': 'Philippians',
+    'B11': 'Philippians',
+    'Col': 'Colossians',
+    'Colossians': 'Colossians',
+    'B12': 'Colossians',
+    '1 Thess': '1 Thessalonians',
+    '1Thess': '1 Thessalonians',
+    '1 Thessalonians': '1 Thessalonians',
+    'B13': '1 Thessalonians',
+    '2 Thess': '2 Thessalonians',
+    '2Thess': '2 Thessalonians',
+    '2 Thessalonians': '2 Thessalonians',
+    'B14': '2 Thessalonians',
+    '1 Tim': '1 Timothy',
+    '1Tim': '1 Timothy',
+    '1 Timothy': '1 Timothy',
+    'B15': '1 Timothy',
+    '2 Tim': '2 Timothy',
+    '2Tim': '2 Timothy',
+    '2 Timothy': '2 Timothy',
+    'B16': '2 Timothy',
+    'Titus': 'Titus',
+    'B17': 'Titus',
+    'Phlm': 'B18',
+    'Philemon': 'Philemon',
+    'B18': 'Philemon',
+    'Heb': 'B19',
+    'Hebrews': 'Hebrews',
+    'B19': 'Hebrews',
+    'Jas': 'James',
+    'James': 'James',
+    'B20': 'James',
+    '1 Pet': '1 Peter',
+    '1Pet': '1 Peter',
+    '1 Peter': '1 Peter',
+    'B21': '1 Peter',
+    '2 Pet': '2 Peter',
+    '2Pet': '2 Peter',
+    '2 Peter': '2 Peter',
+    'B22': '2 Peter',
+    '1 John': '1 John',
+    'B23': '1 John',
+    '1John': '1 John',
+    '2 John': '2 John',
+    'B24': '2 John',
+    '2John': '2 John',
+    '3 John': '3John',
+    '3John': '3John',
+    'B25': '3John',
+    'Jude': 'Jude',
+    'B26': 'Jude',
+    'Rev': 'Revelation',
+    'Revelation': 'Revelation',
+    'B27': 'Revelation',
+}
 
 def get_xml_file(xml: str) ->et._Element:
     xml = xml.replace('xml:id="1', 'xml:id="I')
@@ -32,19 +119,35 @@ def get_xml_file(xml: str) ->et._Element:
     os.remove('temp.xml')
     return root
 
-def load_xml_file(cx_fname: str):
-    with open(cx_fname, 'r', encoding='utf-8') as file:
+def load_xml_file(xml_file: str):
+    with open(xml_file, 'r', encoding='utf-8') as file:
         xml = file.read()
     return get_xml_file(xml)
 
 def construct_full_ref(ab: et. _Element):
-    ref = ab.get(f'{XML_NS}id').replace('-APP', '').replace('.', ':')
-    if re.search(r'ICor\d', ref):
-        ref = ref.replace('ICor', '1 Corinthians ')
-    elif re.search(r'Rom\d', ref):
-        ref = ref.replace('Rom', 'Romans ')
-    elif not ref[0].isdigit():
-        ref = re.sub(r'([a-zA-Z]+)(\d)', r'\1 \2', ref)
+    ref = ab.get(f'{XML_NS}id').replace('-APP', '') #type: str
+    if ref.startswith('B'): # then it is an INTF/IGNTP style reference... probably
+        book = re.search(r'B\d+', ref).group(0)
+        book = ABBR_TO_FULL[book]
+        chapter = re.search(r'K\d+', ref).group(0)
+        verse = re.search(r'V\d+', ref).group(0)
+        ref = f'{book} {chapter}:{verse}'
+    else:
+        book = re.search(r'.[a-zA-Z]+', ref)
+        if not book:
+            return ref
+        book = book.group(0)
+        full_book = ABBR_TO_FULL.get(book)
+        if not full_book:
+            return ref
+        reference = ref.replace(book, '').replace('.', ':')
+        ref = f'{full_book} {reference}'
+    # if re.search(r'ICor\d', ref):
+    #     ref = ref.replace('ICor', '1 Corinthians ')
+    # elif re.search(r'Rom\d', ref):
+    #     ref = ref.replace('Rom', 'Romans ')
+    # elif not ref[0].isdigit():
+    #     ref = re.sub(r'([a-zA-Z]+)(\d)', r'\1 \2', ref)
     return ref
 
 def print_reference(document: Document, ab: et._Element):
