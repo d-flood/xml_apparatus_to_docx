@@ -3,7 +3,7 @@
 This is a small CLI for exporting the XML critical apparatus output of the ITSEE [Collation Editor](https://github.com/itsee-birmingham/standalone_collation_editor).
 
 ## Instructions
-The following are instructions for a CLI; I will soon publish a more user-friendly version that will be included in the Windows and MacOS installable application [Tendon](https://github.com/d-flood/Tendon).
+The following are instructions for a CLI; I have published a more user-friendly version that will be included in the Windows and MacOS installable application [Criticus](https://github.com/d-flood/criticus).
 
 Ideally, the XML Apparatus file should consist of many Collation Editor output files. The Collation Editor works best with single-verse units, but I recommend combining these at least into chapter-length apparatus files. [Tendon](https://github.com/d-flood/Tendon) can easily combine these single-verse collation files.
 
